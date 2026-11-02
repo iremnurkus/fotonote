@@ -1,0 +1,9 @@
+bin/
+obj/
+.vs/
+.env*.local
+.env
+!.env.example
+.firebase/
+node_modules/
+.next/

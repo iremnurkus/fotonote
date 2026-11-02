@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Fotonote",
+    "slug": "fotonote",
+    "scheme": "fotonote",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fotonote.app"
+    },
+    "android": {
+      "package": "com.fotonote.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fotoğraflarına not eklemek için galerine erişim gerekiyor.",
+          "cameraPermission": "Not eklemek üzere fotoğraf çekmek için kameraya erişim gerekiyor.",
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}
