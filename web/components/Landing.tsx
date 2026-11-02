@@ -47,8 +47,7 @@ export default function Landing() {
             Fotoğrafların üzerine, tam olduğu noktaya not ekle.
           </h1>
           <p className="text-lg text-[var(--muted)]">
-            Fotonote ile bir fotoğrafta neyin nerede olduğunu unutma. Notlarını
-            görselin üzerine iğnele, albümlerde topla.
+            Notlarını görselin üzerine iğnele, albümlerde topla.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/kayit" className="btn btn-primary h-12 px-6">
