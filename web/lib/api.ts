@@ -4,7 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5077";
 
 // .NET API'sine Firebase ID token'ı ile istek atar.
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await auth.currentUser?.getIdToken();
+  const token = await auth?.currentUser?.getIdToken();
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {

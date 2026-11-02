@@ -1,9 +1,5 @@
-import Notebook from "@/components/Notebook";
+import Landing from "@/components/Landing";
 
 export default function Home() {
-  return (
-    <main className="flex-1">
-      <Notebook />
-    </main>
-  );
+  return <Landing />;
 }

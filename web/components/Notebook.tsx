@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
+import { loadUserStore, saveUserStore } from "@/lib/cloudNotes";
 import {
   compressImage,
   emptyStore,
   loadStore,
+  loadUserStoreCache,
   saveStore,
+  saveUserStoreCache,
   type Page,
   type Store,
 } from "@/lib/notes";
@@ -17,7 +22,22 @@ export default function Notebook() {
   const [store, setStore] = useState<Store>(emptyStore);
   const [ready, setReady] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [syncState, setSyncState] = useState<"idle" | "saving" | "saved" | "error" | "cleanup">("idle");
+  const [syncError, setSyncError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [syncAttempt, setSyncAttempt] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const { user, signOut } = useAuth();
+  const uid = user?.uid ?? null;
+  const router = useRouter();
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const skipNextSave = useRef(true);
+
+  async function signOutAndLeave() {
+    await signOut();
+    router.replace("/");
+  }
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggleSection = (key: string) =>
     setCollapsed((prev) => {
@@ -27,15 +47,124 @@ export default function Notebook() {
     });
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStore(loadStore());
-    setReady(true);
-  }, []);
+    let active = true;
+    void (async () => {
+      try {
+        const cloudStore = uid ? await loadUserStore(uid) : null;
+        const initialStore = cloudStore ?? (uid ? emptyStore : loadStore());
+        if (!active) return;
+        if (uid && cloudStore) {
+          setSaveFailed(!saveUserStoreCache(uid, cloudStore));
+        }
+        skipNextSave.current = true;
+        setStore(initialStore);
+        setReady(true);
+      } catch (error) {
+        if (!active) return;
+        const cachedStore = uid ? loadUserStoreCache(uid) : null;
+        if (cachedStore) {
+          skipNextSave.current = true;
+          setStore(cachedStore);
+          setReady(true);
+          setSyncState("error");
+          setSyncError("Çevrimdışısın. Yerel defter gösteriliyor.");
+          return;
+        }
+        setLoadError(
+          uid
+            ? "Bulut defterine bağlanılamadı ve bu hesap için kayıtlı bir yerel kopya bulunamadı. İnternet bağlantını kontrol edip tekrar dene."
+            : error instanceof Error
+              ? error.message
+              : "Defter yüklenemedi.",
+        );
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [uid, loadAttempt]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (ready) setSaveFailed(!saveStore(store));
-  }, [store, ready]);
+    if (!ready) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    if (!uid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSaveFailed(!saveStore(store));
+      return;
+    }
+
+    setSaveFailed(!saveUserStoreCache(uid, store));
+    setSyncState("saving");
+    setSyncError("");
+    let active = true;
+    saveQueue.current = saveQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const result = await saveUserStore(uid, store);
+        if (!active) return;
+        setSaveFailed(!saveUserStoreCache(uid, result.store));
+        setStore((current) => ({
+          ...current,
+          pages: current.pages.map((page) => {
+            const saved = result.store.pages.find(
+              (candidate) => candidate.id === page.id,
+            );
+            return page.kind === "photo" && saved?.kind === "photo"
+              ? { ...page, storagePath: saved.storagePath }
+              : page;
+          }),
+        }));
+        setSyncState(result.cleanupPending ? "cleanup" : "saved");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setSyncState("error");
+        setSyncError(
+          error instanceof Error ? error.message : "Bulut kaydı başarısız.",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [store, ready, uid, syncAttempt]);
+
+  useEffect(() => {
+    if (!uid || !ready) return;
+    const retrySync = () => setSyncAttempt((attempt) => attempt + 1);
+    window.addEventListener("online", retrySync);
+    return () => window.removeEventListener("online", retrySync);
+  }, [uid, ready]);
+
+  if (!ready) {
+    return (
+      <main className="flex flex-1 items-center justify-center p-6">
+        {loadError ? (
+          <div className="box flex max-w-md flex-col gap-3 p-5">
+            <p role="alert" className="text-sm text-[var(--danger)]">
+              Defter yüklenemedi: {loadError}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadError("");
+                setLoadAttempt((attempt) => attempt + 1);
+              }}
+              className="btn"
+            >
+              Tekrar dene
+            </button>
+          </div>
+        ) : (
+          <p role="status" className="text-sm text-[var(--muted)]">
+            Defter yükleniyor...
+          </p>
+        )}
+      </main>
+    );
+  }
 
   // activeId boşsa hiçbir sayfa açık değildir (kapatılmış).
   const wsId = store.activeWorkspaceId;
@@ -221,8 +350,33 @@ export default function Notebook() {
     <div className="flex min-h-dvh w-full flex-col gap-5 p-4 lg:h-dvh lg:p-6">
       {saveFailed && (
         <div className="box shrink-0 border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-          Defter tarayıcı depolamasına sığmadı; sayfa yenilenince bazı
-          değişiklikler kaybolabilir.
+          Defterin bu cihazdaki yerel kopyası kaydedilemedi. İnternet bağlantısı
+          kesilirse değişiklikler kaybolabilir.
+        </div>
+      )}
+      {uid && syncState !== "idle" && (
+        <div
+          role={syncState === "error" ? "alert" : "status"}
+          className={`box shrink-0 px-3 py-2 text-sm font-medium ${
+            syncState === "error" || syncState === "cleanup"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "text-[var(--muted)]"
+          }`}
+        >
+          {syncState === "saving" && "Bulut deftere kaydediliyor..."}
+          {syncState === "saved" && "Bulut deftere kaydedildi."}
+          {syncState === "cleanup" &&
+            "Notlar kaydedildi; bazı eski fotoğraflar temizlenemedi."}
+          {syncState === "error" && `Bulut kaydı başarısız: ${syncError}`}
+          {(syncState === "error" || syncState === "cleanup") && (
+            <button
+              type="button"
+              onClick={() => setSyncAttempt((attempt) => attempt + 1)}
+              className="ml-2 underline underline-offset-2"
+            >
+              Tekrar eşitle
+            </button>
+          )}
         </div>
       )}
 
@@ -281,6 +435,17 @@ export default function Notebook() {
                 <Icon name="text" />
                 <span className="rail-action-label">Yazılı not ekle</span>
               </button>
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => void signOutAndLeave()}
+                  className="rail-action"
+                  title="Çıkış yap"
+                >
+                  <Icon name="logout" />
+                  <span className="rail-action-label">Çıkış yap</span>
+                </button>
+              )}
             </div>
 
             <div className="box flex flex-col lg:hidden">
@@ -308,6 +473,15 @@ export default function Notebook() {
                 <button type="button" onClick={addText} className="btn">
                   + Yazılı not
                 </button>
+                {user && (
+                  <button
+                    type="button"
+                    onClick={() => void signOutAndLeave()}
+                    className="btn"
+                  >
+                    Çıkış yap
+                  </button>
+                )}
               </div>
             </div>
           </aside>

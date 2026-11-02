@@ -21,6 +21,7 @@ export type PhotoPage = PageBase & {
   title: string;
   src: string;
   pins: Pin[];
+  storagePath?: string;
 };
 
 export type TextPage = PageBase & {
@@ -41,6 +42,7 @@ export type Store = {
 };
 
 const KEY = "fotonote:v3";
+const USER_KEY_PREFIX = "fotonote:user:v1:";
 const V2_KEY = "fotonote:v2";
 const LEGACY_KEY = "fotonote:photo";
 
@@ -96,6 +98,29 @@ export function saveStore(store: Store): boolean {
     localStorage.setItem(KEY, JSON.stringify(store));
     localStorage.removeItem(LEGACY_KEY);
     localStorage.removeItem(V2_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadUserStoreCache(uid: string): Store | null {
+  try {
+    const raw = localStorage.getItem(
+      `${USER_KEY_PREFIX}${encodeURIComponent(uid)}`,
+    );
+    return raw ? { ...emptyStore, ...(JSON.parse(raw) as Store) } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveUserStoreCache(uid: string, store: Store): boolean {
+  try {
+    localStorage.setItem(
+      `${USER_KEY_PREFIX}${encodeURIComponent(uid)}`,
+      JSON.stringify(store),
+    );
     return true;
   } catch {
     return false;

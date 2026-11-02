@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
-export type IconName = "check" | "close" | "edit" | "folder" | "image" | "plus" | "text" | "trash" | "eye" | "chevron" | "minus";
+export type IconName = "check" | "close" | "edit" | "folder" | "image" | "plus" | "text" | "trash" | "eye" | "chevron" | "minus" | "logout";
 
 const paths: Record<IconName, ReactNode> = {
+  logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>,
   minus: <path d="M5 12h14" />,
   chevron: <path d="m6 9 6 6 6-6" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
