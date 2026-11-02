@@ -23,5 +23,5 @@ npm run dev                            # http://localhost:3000
 cd api; dotnet run                     # http://localhost:5077 (/health)
 ```
 
-`api/appsettings.Development.json` içindeki `Firebase:ProjectId` değerini kendi Firebase projenle değiştir.
+API'deki `Firebase:ProjectId` değeri, `web/.env.local` içindeki `NEXT_PUBLIC_FIREBASE_PROJECT_ID` ile aynı olmalıdır.
 #
